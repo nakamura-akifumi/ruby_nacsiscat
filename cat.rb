@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+#*coding:utf-8*
 
 require 'net/http'
 require 'uri'
@@ -7,7 +8,26 @@ require 'logger'
 require 'yaml'
 
 class NCS_ERROR < StandardError ; end
-class NCS_AUTH_ERROR < StandardError ; end
+class NCS_RESPONSE_ERROR < NCS_ERROR ; end
+class NCS_AUTH_ERROR < NCS_ERROR ; end
+
+class NACSIS_CAT_MODEL
+  def initialize
+    @attributes = {}
+  end
+  
+  def method_missing(name, *args)
+    attribute = name.to_s
+    if attribute =~ /=$/
+      @attributes[attribute.chop] = args[0]
+    else
+      @attributes[attribute]
+    end
+  end
+end
+
+class Book < NACSIS_CAT_MODEL
+end
 
 class NACSIS_CAT_Service
   PLUGIN_VERSION = "0.1"
@@ -68,14 +88,14 @@ class NACSIS_CAT_Service
     post(post_object) {|http, response|
       responses = response.body.split(CRLF)    
       res_status_line = responses[0]
-      res_method, res_handle, res_frame, res_catp_version, res_code, res_phrase = res_status_line.split(" ")
+      res_method, res_handle, res_frame, res_catp_version, res_code, res_phrase = res_status_line.split(" ", 6)
       unless res_method == "GETHANDLE"
         logger.error "GETHANDLE method=#{res_method}"
-        raise NCS_ERROR
+        raise NCS_RESPONSE_ERROR
       end
       if res_code =~ /^[345]/
         logger.error "GETHANDLE code=#{res_code} phrase=#{res_phrase}"
-        raise NCS_ERROR
+        raise NCS_RESPONSE_ERROR
       end
 
       @support_methods = responses[1]
@@ -101,14 +121,14 @@ class NACSIS_CAT_Service
     post(post_object) {|http, response|
       responses = response.body.split(CRLF)    
       res_status_line = responses[0]
-      res_method, res_handle, res_frame, res_catp_version, res_code, res_phrase = res_status_line.split(" ")
+      res_method, res_handle, res_frame, res_catp_version, res_code, res_phrase = res_status_line.split(" ", 6)
       unless res_method == "RELEASEHANDLE"
         logger.error "RELEASEHANDLE method=#{res_method}"
-        raise NCS_ERROR
+        raise NCS_RESPONSE_ERROR
       end
       if res_code =~ /^[345]/
         logger.error "RELEASEHANDLE code=#{res_code} phrase=#{res_phrase}"
-        raise NCS_ERROR
+        raise NCS_RESPONSE_ERROR
       end
     }
     @handle_id = nil
@@ -124,13 +144,6 @@ class NACSIS_CAT_Service
              search_object_body)
 
     logger.debug "SEARCH Query: #{search_object_body}"
-=begin
-    Request = Request-Line　　　
-    　　　　　[Request-Header]
-    　　　　　Object-Header
-    　　　　　CRLF
-    　　　　　[Object-Body]
-=end
 
     begin 
       handle, frame_value = get_handle
@@ -152,18 +165,65 @@ class NACSIS_CAT_Service
       post(post_object) {|http, response|
         responses = response.body.split(CRLF)    
         res_status_line = responses[0]
-        res_method, res_handle, res_frame, res_catp_version, res_code, *res_phrase = res_status_line.split(" ")
+        res_method, res_handle, res_frame, res_catp_version, res_code, res_phrase = res_status_line.split(" ", 6)
         unless res_method == "SEARCH"
           logger.error "SEARCH method=#{res_method}"
-          raise NCS_ERROR
+          raise NCS_RESPONSE_ERROR
         end
         if res_code =~ /^[345]/
-          logger.error "SEARCH code=#{res_code} phrase=#{res_phrase.join(' ')}"
-          raise NCS_ERROR
+          logger.error "SEARCH code=#{res_code} phrase=#{res_phrase}"
+          raise NCS_RESPONSE_ERROR
         end
 
+        result_count = 0
+        record_returned = 0
+        next_position = 0
+
+        #puts "++++++++"
+        #puts responses
+        #puts "--------"
+        #pp responses
+
+        # response-header
+        if /Result-count:(.*)/ =~ responses[2]
+          result_count = $1
+          logger.debug "result_count=#{result_count}"
+        end
+        if /Number-of-records-returned:(.*)/ =~ responses[3]
+          record_returned = $1
+        end
+        if /Next-result-set-position:(.*)/ =~ responses[4]
+          next_position = $1
+        end
+        if result_count == 0
+          logger.info "no record."
+          return
+        end
+
+        # object-header
+        if /Content-Length:(.*)/ =~ responses[5]
+          content_length = $1
+        end
+        if /Encoding:(.*)/ =~ responses[6]
+          encoding = $1
+        end
+
+        # object-body
+        record = []
+        model = []
+        responses[8..-1].each do |s|
+          if /^--NACSIS-CATP/ =~ s
+            record.push(model) if model.count > 0
+
+            model = []
+            next
+          end
+          model << s
+        end
+
+        return record
       }
-    rescue => ex
+    rescue NCS_ERROR => ex
       logger.error "error class=#{ex.class} msg=#{ex.message}"
     ensure
       release_handle
@@ -171,6 +231,12 @@ class NACSIS_CAT_Service
   end
 
   private
+  def parse_result(result)
+    #result.split("--NACSIS-CATP\n")
+    results = []
+
+  end
+
   def post(body)
     unless block_given?
       logger.error "no block"
@@ -183,7 +249,7 @@ class NACSIS_CAT_Service
         "user-agent" => AGENT_NAME
       }
       response = http.post(uri.path, body, header)
-      logger.debug response.body
+      #logger.debug response.body
       yield http, response
     }
   end
@@ -203,10 +269,12 @@ ui = YAML.load_file("auth.yml")
 #pp ui
 
 cat = NACSIS_CAT_Service.new(ui['user']['catp_url'], ui['user']['user_id'], ui['user']['password'])
-search_object = "ISBNKEY=\"9784798023809\""
+#cat.logger.level = ::Logger.const_get((:info).to_s.upcase)
+
+# http://www.nii.ac.jp/CAT-ILL/INFO/newcat/jissou_siyo/bbib.search.html
+#search_object = "ISBNKEY=\"4797359985\""
+#search_object = "FTITLEKEY=\"新潟\""
+search_object = "TITLEKEY=\"新潟\""
 
 cat.search("BOOK", "", "2", "2", 50, 200, 200, search_object)
-
-#cat.get_handle
-#cat.release_handle
 
