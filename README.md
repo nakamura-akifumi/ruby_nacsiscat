@@ -8,8 +8,14 @@ SEARCH,RETRIEV,INSERT,UPDATE,DELETE を実装予定です。
 
 Add this line to your application's Gemfile:
 
+(release version from rubygems)
+
     gem 'ruby_nacsiscat'
 
+(or development version)
+
+    gem 'ruby_nacsiscat', :git => 'git://github.com/nakamura-akifumi/ruby_nacsiscat.git'
+    
 And then execute:
 
     $ bundle
