@@ -28,20 +28,20 @@ describe "NacsisCat接続 " do
     r.should be_nil
   end
 
-  it "isbnを指定して検索したら結果は１件であること" do
+  it "isbn(10)を指定して検索したら結果は１件であること" do
     cat = NACSIS_CAT_Service.new(@ui['user']['catp_url'], @ui['user']['user_id'], @ui['user']['password'])
     cat.logger.level = ::Logger.const_get((:debug).to_s.upcase)
-    search_object = "ISBNKEY=\"9784873114453\""
+    search_object = "ISBNKEY=\"4398120580\""
     r = cat.search("BOOK", "", "2", "2", 50, 200, 200, search_object)
     r.size.should == 1
   end
 
-  it "titlekeyを指定して検索したら結果は１件以上であること" do
+  it "titlekeyを指定して検索したら結果は2件以上であること" do
     cat = NACSIS_CAT_Service.new(@ui['user']['catp_url'], @ui['user']['user_id'], @ui['user']['password'])
     #cat.logger.level = ::Logger.const_get((:debug).to_s.upcase)
     search_object = "TITLEKEY=\"新潟\""
     r = cat.search("BOOK", "", "2", "2", 50, 200, 200, search_object)
-    r.size.should be >= 1
+    r.size.should be >= 2
   end
 
 end

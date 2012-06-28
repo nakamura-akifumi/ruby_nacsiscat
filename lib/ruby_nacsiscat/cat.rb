@@ -46,8 +46,10 @@ class NACSIS_CAT_Service
   ENCODING_STR = "Encoding:UTF8"
   SCHEMA_VERSION_STR = "Schema-version: #{SCHEMA_VERSION}"
 
+  # see: http://www.nii.ac.jp/CAT-ILL/INFO/newcat/jissou_siyo/dbname_meth.html
   NACSIS_CAT_DB_NAMES = %w(BOOK RECON SERIAL)
 
+  # see: http://www.nii.ac.jp/CAT-ILL/INFO/newcat/jissou_siyo/jissou.html#edit-type
   EDIT_TYPES = %w(0 1 2 9)
 
   attr_reader :handle_id
@@ -142,6 +144,13 @@ class NACSIS_CAT_Service
   def release_frame
   end
 
+  def scan(db_name, frame_value, small_set_element_names, medium_set_element_set_names,
+             upper_bound, lower_bound, medium_set_present_number,
+             search_object_body)
+
+  end
+
+  # see: http://www.nii.ac.jp/CAT-ILL/INFO/newcat/jissou_siyo/catp-regexp.html
   def search(db_name, frame_value, small_set_element_names, medium_set_element_set_names,
              upper_bound, lower_bound, medium_set_present_number,
              search_object_body)
@@ -190,7 +199,7 @@ class NACSIS_CAT_Service
         #puts "@@@@@@@@@"
 
         # response-header
-        puts responses[2]
+        #puts responses[2]
         if /Result-count:(\d+)/ =~ responses[2]
           result_count = $1.to_i
           logger.debug "result_count=#{result_count}"
@@ -217,16 +226,19 @@ class NACSIS_CAT_Service
         # object-body
         record = []
         model = []
-        responses[8..-1].each do |s|
-          if /^--NACSIS-CATP/ =~ s
-            record.push(model) if model.count > 0
+        if result_count == 1
+          record << responses[8..-1]
+        else
+          responses[8..-1].each do |s|
+            if /^--NACSIS-CATP/ =~ s
+              record << model if model.count > 0
 
-            model = []
-            next
+              model = []
+              next
+            end
+            model << s
           end
-          model << s
         end
-
         return record
       }
     rescue NCS_ERROR => ex
