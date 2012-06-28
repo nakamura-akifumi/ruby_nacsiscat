@@ -10,6 +10,10 @@ class NCS_RESPONSE_ERROR < NCS_ERROR ; end
 class NCS_AUTH_ERROR < NCS_ERROR ; end
 class NCS_ARUGUMENT_ERROR < NCS_ERROR ; end
 
+class NACSIS_CAT_RESULT
+  attr_accessor :result
+end
+
 class NACSIS_CAT_MODEL
   def initialize
     @attributes = {}
@@ -180,21 +184,22 @@ class NACSIS_CAT_Service
         record_returned = 0
         next_position = 0
 
-        #puts "++++++++"
-        #puts responses
-        #puts "--------"
-        #pp responses
+        # debug
+        #puts "@@@@@@@@@"
+        #puts response.body
+        #puts "@@@@@@@@@"
 
         # response-header
-        if /Result-count:(.*)/ =~ responses[2]
-          result_count = $1
+        puts responses[2]
+        if /Result-count:(\d+)/ =~ responses[2]
+          result_count = $1.to_i
           logger.debug "result_count=#{result_count}"
         end
-        if /Number-of-records-returned:(.*)/ =~ responses[3]
-          record_returned = $1
+        if /Number-of-records-returned:(\d+)/ =~ responses[3]
+          record_returned = $1.to_i
         end
-        if /Next-result-set-position:(.*)/ =~ responses[4]
-          next_position = $1
+        if /Next-result-set-position:(\d+)/ =~ responses[4]
+          next_position = $1.to_i
         end
         if result_count == 0
           logger.info "no record."
@@ -269,17 +274,3 @@ class NACSIS_CAT_Service
 
 end
 
-=begin
-ui = YAML.load_file("auth.yml")
-#pp ui
-
-cat = NACSIS_CAT_Service.new(ui['user']['catp_url'], ui['user']['user_id'], ui['user']['password'])
-#cat.logger.level = ::Logger.const_get((:info).to_s.upcase)
-
-# http://www.nii.ac.jp/CAT-ILL/INFO/newcat/jissou_siyo/bbib.search.html
-#search_object = "ISBNKEY=\"4797359985\""
-#search_object = "FTITLEKEY=\"新潟\""
-search_object = "TITLEKEY=\"新潟\""
-
-cat.search("BOOK", "", "2", "2", 50, 200, 200, search_object)
-=end
