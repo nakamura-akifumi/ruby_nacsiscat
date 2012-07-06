@@ -148,7 +148,30 @@ class NACSIS_CAT_Service
              upper_bound, lower_bound, medium_set_present_number,
              search_object_body)
 
+    logger.debug "SCAN DBs: #{db_name} ,Query: #{search_object_body}"
   end
+
+  def retrieve(handle_id, frame_value, start_position, records_requested)
+    logger.debug "RETRIEVE handle_id: #{handle_id} ,frame_value: #{frame_value}"
+
+    begin
+      post_request_line = "RETRIEVE #{@handle_id} #{frame_value} #{CATP_VERSION} #{RequestcodeAny} REQUEST"
+      post_request_header = ["Result-set-start-position: #{start_position}",
+        "Number-of-records-requested: #{records_requested}"]
+
+      post_object_header = ["Content-Length: #{search_object_body.length}", ENCODING_STR]
+      post_object_body = search_object_body
+      post_object = [post_request_line, post_request_header, post_object_header, "", post_object_body, ""].join(CRLF)
+     
+      post(post_object) {|http, response|
+        responses = response.body.split(CRLF)    
+        res_status_line = responses[0]
+        res_method, res_handle, res_frame, res_catp_version, res_code, res_phrase = res_status_line.split(" ", 6)
+      }
+ 
+    end
+  end
+
 
   # see: http://www.nii.ac.jp/CAT-ILL/INFO/newcat/jissou_siyo/catp-regexp.html
   def search(db_name, frame_value, small_set_element_names, medium_set_element_set_names,
